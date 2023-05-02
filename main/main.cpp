@@ -59,7 +59,7 @@ void task_function(void*) {
 extern "C" void app_main() {
   // Init ADC in continuous mode
   adc_continuous_handle_cfg_t adc_config{
-    .max_store_buf_size = size(result) * SOC_ADC_DIGI_RESULT_BYTES * 8u,
+    .max_store_buf_size = size(result) * SOC_ADC_DIGI_DATA_BYTES_PER_CONV * 8u,
     .conv_frame_size = size(result),
   };
   ESP_ERROR_CHECK(adc_continuous_new_handle(&adc_config, &adc1_handle));
