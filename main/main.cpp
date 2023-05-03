@@ -7,6 +7,8 @@
 #include <cstdio>
 
 static constexpr auto max_number_of_samples{100'000uz};
+static constexpr auto max_number_of_bytes{max_number_of_samples *
+                                          SOC_ADC_DIGI_DATA_BYTES_PER_CONV};
 static constexpr auto sampling_frequency{10u * 1000u};
 static constexpr auto expected_time{static_cast<double>(max_number_of_samples) /
                                     static_cast<double>(sampling_frequency)};
@@ -16,8 +18,8 @@ std::array<uint8_t, 256uz> result{};
 // Times how long ADC takes to take "max_number_of_samples" at configured
 // sampling frequency
 void task_function(void*) {
-  uint32_t ret_num{};
-  size_t number_of_samples{};
+  uint32_t bytes{};
+  size_t number_of_bytes{};
 
   // Start ADC
   int64_t previous_us{esp_timer_get_time()};
@@ -26,28 +28,30 @@ void task_function(void*) {
   for (;;) {
     // Read samples
     if (adc_continuous_read(
-          adc1_handle, data(result), size(result), &ret_num, 0u) != ESP_OK)
+          adc1_handle, data(result), size(result), &bytes, 0u) != ESP_OK)
       continue;
 
     // Sum all, once done print time it took to measure them
-    number_of_samples += ret_num;
-    if (number_of_samples < max_number_of_samples) continue;
-    number_of_samples = 0uz;
+    number_of_bytes += bytes;
+    if (number_of_bytes < max_number_of_bytes) continue;
+    number_of_bytes = 0uz;
 
     // Convert time it took from us to s (10^6)
     auto const actual_us{esp_timer_get_time()};
     auto const delta_time{(actual_us - previous_us) / 1e6};
-    printf("Taking %zu samples @ %uHz took %fs instead of %fs\n",
+    auto const error_pct{(1.0 - delta_time / expected_time) * 100.0};
+    printf("Taking %zu samples @ %uHz took %fs instead of %fs (error: %f%%)\n",
            max_number_of_samples,
            sampling_frequency,
            delta_time,
-           expected_time);
+           expected_time,
+           error_pct);
 
     // Stop ADC and read till empty (might print error message that ADC is
     // already stopped since print before takes long)
     adc_continuous_stop(adc1_handle);
     while (adc_continuous_read(
-             adc1_handle, data(result), size(result), &ret_num, 0u) == ESP_OK)
+             adc1_handle, data(result), size(result), &bytes, 0u) == ESP_OK)
       ;
 
     // Restart ADC
